@@ -2,14 +2,111 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
+const fs = require('fs');
+const path = require('path');
+
+
+interface TaskListGeneratorSettings {
+	tasksRoot: string,
+	outputNote: string
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: TaskListGeneratorSettings= {
+	tasksRoot: 'ToDo',
+	outputNote: 'Task List.md'
 }
 
+export default class TaskListGenerator extends Plugin {
+
+	settings:TaskListGeneratorSettings
+
+    async onload() {
+		await this.loadSettings();
+        this.addCommand({
+            id: 'update-task-list',
+            name: 'Update Task List',
+            callback: this.updateTaskList.bind(this),
+        });
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new TaskListGeneratorSettingsTab(this.app, this));
+    }
+
+    async updateTaskList() {
+        const vault = this.app.vault;
+        const vaultRoot = vault.adapter.getBasePath();// get the root directory of the vault
+        const taskDir = path.join(vaultRoot, this.settings.tasksRoot);  
+        const outputNote = this.settings.outputNote;  // replace with your note
+
+        // get a list of all markdown files in the directory
+        const noteFiles = fs.readdirSync(taskDir).filter(f => f.endsWith('.md'));
+
+        // remove the .md extension from the filenames
+        const noteTitles = noteFiles.map(f => path.basename(f, '.md'));
+
+        // create a list with checkboxes
+        const noteList = noteTitles.map(title => `- [ ] [[${title}]]`).join('\n');
+
+        // write the list to the output note
+
+		console.log(outputNote);
+		const outputNoteFile = vault.getAbstractFileByPath(outputNote);
+
+		console.log(outputNoteFile);
+
+        await vault.modify(outputNoteFile, noteList);
+    }
+
+	
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+	}
+}
+
+class TaskListGeneratorSettingsTab extends PluginSettingTab {
+	plugin: TaskListGenerator;
+
+	constructor(app: App, plugin: TaskListGenerator) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const {containerEl} = this;
+
+		containerEl.empty();
+		containerEl.createEl('h2', {text: 'Configuration'});
+
+		new Setting(containerEl)
+			.setName('Tasks Root Folder')
+			.setDesc('Root folder of the tasks')
+			.addText(text => text
+				.setPlaceholder('')
+				.setValue(this.plugin.settings.tasksRoot)
+				.onChange(async (value) => {
+					console.log('TaskRoot Set to: ' + value);
+					this.plugin.settings.tasksRoot = value;
+					await this.plugin.saveSettings();
+				}));
+		
+		new Setting(containerEl)
+			.setName('Destination Note')
+			.setDesc('Name of the destination Note')
+			.addText(text => text
+				.setPlaceholder('')
+				.setValue(this.plugin.settings.outputNote)
+				.onChange(async (value) => {
+					console.log('Destination Note Set to: ' + value);
+					this.plugin.settings.outputNote = value;
+					await this.plugin.saveSettings();
+				}));
+	}
+}
+/*
 export default class MyPlugin extends Plugin {
 	settings: MyPluginSettings;
 
@@ -106,32 +203,4 @@ class SampleModal extends Modal {
 		contentEl.empty();
 	}
 }
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
+*/
